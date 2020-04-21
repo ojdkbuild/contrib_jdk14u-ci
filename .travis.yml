@@ -1,0 +1,131 @@
+# Copyright 2020, akashche at redhat.com
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+language: cpp
+
+sudo: required
+
+services:
+  - docker
+
+os:
+  - linux
+
+env:
+  global:
+    - OJDK_MILESTONE=ojdkbuild
+    - OJDK_WITH_NATIVE_DEBUG_SYMBOLS=none
+    - OJDK_WITH_DEBUG_LEVEL=release
+
+before_install:
+  - set -e
+  - export OJDK_TAG=`git describe --exact-match --tags HEAD`
+  - if [ -z ${OJDK_TAG} ] ; then exit 1 ; fi
+  - echo ${OJDK_TAG}
+  - export OJDK_UPDATE=`echo ${OJDK_TAG} | sed 's/\./ /g' | sed 's/+/ /' | awk '{print $3}'`
+  - echo ${OJDK_UPDATE}
+  - export OJDK_BUILD=`echo ${OJDK_TAG} | sed 's/+/ /' | awk '{print $2}'`
+  - echo ${OJDK_BUILD}
+  - export OJDK_IMAGE=jdk-14.0.${OJDK_UPDATE}-${OJDK_MILESTONE}-linux-x64
+  - export D="docker exec builder"
+  - docker pull centos:6
+  - docker run
+            -id
+            --name builder
+            -w /opt
+            -v `pwd`:/host
+            -e LD_LIBRARY_PATH=/opt/rh/devtoolset-7/root/usr/lib64:/opt/rh/devtoolset-7/root/usr/lib:/opt/rh/devtoolset-7/root/usr/lib64/dyninst:/opt/rh/devtoolset-7/root/usr/lib/dyninst:/opt/rh/devtoolset-7/root/usr/lib64:/opt/rh/devtoolset-7/root/usr/lib:/opt/rh/autotools-latest/root/usr/lib64
+            -e PATH=/opt/rh/devtoolset-7/root/usr/bin:/opt/rh/autotools-latest/root/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+            centos:6 bash
+
+install:
+  - $D curl -LO https://www.softwarecollections.org/en/scls/praiskup/autotools/epel-6-x86_64/download/praiskup-autotools-epel-6-x86_64.noarch.rpm
+  - $D yum install -y
+            centos-release-scl-rh
+            praiskup-autotools-epel-6-x86_64.noarch.rpm
+  - $D yum install -y
+            which
+            zip
+            unzip
+            patch
+            alsa-lib-devel
+            cups-devel
+            freetype-devel
+            libX11-devel
+            libXi-devel
+            libXinerama-devel
+            libXt-devel
+            libXtst-devel
+            libXrandr-devel
+            libXrender-devel
+            xorg-x11-proto-devel
+            elfutils-libelf-devel
+            fontconfig-devel
+            devtoolset-7
+            autotools-latest
+  - $D curl -LO https://github.com/ojdkbuild/contrib_jdk13u-ci/releases/download/jdk-13.0.2%2B8/jdk-13.0.2-ojdkbuild-linux-x64.zip
+  - $D unzip -q jdk-13.0.2-ojdkbuild-linux-x64.zip
+  - $D mv jdk-13.0.2-ojdkbuild-linux-x64 bootjdk
+
+before_script:
+  - $D curl -LO http://hg.openjdk.java.net/jdk-updates/jdk14u/archive/${OJDK_TAG}.tar.bz2
+  - $D tar -xjf ${OJDK_TAG}.tar.bz2
+  - $D rm ${OJDK_TAG}.tar.bz2
+  - $D mv jdk14u-${OJDK_TAG} jdk14u
+
+script:
+  - $D mkdir jdkbuild
+  - $D bash -c "cd jdkbuild &&
+        bash /opt/jdk14u/configure
+        --enable-unlimited-crypto=yes
+        --disable-warnings-as-errors
+        --disable-hotspot-gtest
+        --with-native-debug-symbols=${OJDK_WITH_NATIVE_DEBUG_SYMBOLS} 
+        --with-debug-level=${OJDK_WITH_DEBUG_LEVEL}
+        --with-stdc++lib=static
+        --with-zlib=bundled
+        --with-boot-jdk=/opt/bootjdk
+        --with-cacerts-file=/etc/pki/java/cacerts
+        --with-version-pre=''
+        --with-version-build=${OJDK_BUILD}
+        --with-version-opt=''
+        --with-vendor-version-string=19.9
+        --with-vendor-name=ojdkbuild
+        --with-vendor-url=https://github.com/ojdkbuild
+        --with-vendor-bug-url=https://github.com/ojdkbuild/ojdkbuild/issues
+        --with-vendor-vm-bug-url=https://github.com/ojdkbuild/ojdkbuild/issues
+        --with-log=info"
+  - $D bash -c "cd jdkbuild && make images"
+  - $D mv /opt/jdkbuild/images/jdk ${OJDK_IMAGE}
+  - $D rm -rf ./${OJDK_IMAGE}/demo
+  - $D zip -qyr9 ${OJDK_IMAGE}.zip ${OJDK_IMAGE}
+  - $D mv ${OJDK_IMAGE}.zip /host/
+  - sha256sum ${OJDK_IMAGE}.zip > ${OJDK_IMAGE}.zip.sha256
+
+deploy:
+  provider: releases
+  skip_cleanup: true
+  api_key:
+    secure: tMD0QFqeqnsmbUR3oW6eKjOSYB3KswFIbPxUulf1p6OCr6i3bSayQta5HUQwxPVbENvEwfYaExkf/h1HvJ7+YyZfM+1vy/Vw4bDE8KITwIGIv5lIcSK3ubZ/13jvbSo8igkARh8qSY6UxeylTkDApu5tFYXkzwKfWgNWA5+sjX7T4wu2NS7SET2AmO09UHwDk5k6Ti0U73b8HrjNfv2KXqpablQ3ESawZh2V7IxW8EKe1/Blv2eRa+koMQ61A9bd6qdhpDrr5JOIyJGPFBGWXxZ13Zw+HgxWmhiOUhDEcRFbQLX4lLeuU2w5lk4f3LbRFxGF7P8uld4k/7sb0RwV6ub0SlJRg/q+eY8bsERa1CFQDq/dVZPwMxm147lhNAMxVoQGOa7yakfTom0dAO4sdGLY8RTolmWcJGyFxvZ0EYHwXlW3GLcoAXLEwyvahXm/Le8RoduuNo1WDb0pbL/cVxzjBr2qQ9nmYEb/RBpWTNM+HvvX5k+Sql0/L+hRTxi69eR/9safSrf4JU9AKgxQT4S8VYlhN7muxkgTUnaiX/VyE22yQkgb3CLSDkE2Iyn5IrhRhelQxxw0xge3CoIPYXq8x7jbfuNlLPTzihttTu2tKAWEjcvsypGaOxOEPJ6hOE2V2WpZsOrJTYeOXzqNBt7b3edH318nE8B9I/PpVyU=
+  file:
+    - ${OJDK_IMAGE}.zip
+    - ${OJDK_IMAGE}.zip.sha256
+  on:
+    repo: ojdkbuild/contrib_jdk14u-ci
+    tags: true
+
+notifications:
+  email:
+    on_success: always
+
