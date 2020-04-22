@@ -88,7 +88,6 @@ script:
   - $D mkdir jdkbuild
   - $D bash -c "cd jdkbuild &&
         bash /opt/jdk14u/configure
-        --enable-unlimited-crypto=yes
         --disable-warnings-as-errors
         --disable-hotspot-gtest
         --with-native-debug-symbols=${OJDK_WITH_NATIVE_DEBUG_SYMBOLS} 
@@ -96,11 +95,10 @@ script:
         --with-stdc++lib=static
         --with-zlib=bundled
         --with-boot-jdk=/opt/bootjdk
-        --with-cacerts-file=/etc/pki/java/cacerts
         --with-version-pre=''
         --with-version-build=${OJDK_BUILD}
         --with-version-opt=''
-        --with-vendor-version-string=19.9
+        --with-vendor-version-string=20.3
         --with-vendor-name=ojdkbuild
         --with-vendor-url=https://github.com/ojdkbuild
         --with-vendor-bug-url=https://github.com/ojdkbuild/ojdkbuild/issues
