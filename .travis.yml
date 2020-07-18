@@ -50,14 +50,16 @@ before_install:
             centos:6 bash
 
 install:
-  - $D curl -LO https://www.softwarecollections.org/en/scls/praiskup/autotools/epel-6-x86_64/download/praiskup-autotools-epel-6-x86_64.noarch.rpm
+  - $D yum update -y
+  - $D yum install unzip -y
+  - $D curl -LO https://github.com/ojdkbuild/praiskup-autotools-epel-6-x86_64/archive/master.zip
+  - $D unzip ./master.zip
+  - $D yum install ./praiskup-autotools-epel-6-x86_64-master/*.rpm -y
   - $D yum install -y
             centos-release-scl-rh
-            praiskup-autotools-epel-6-x86_64.noarch.rpm
   - $D yum install -y
             which
             zip
-            unzip
             patch
             alsa-lib-devel
             cups-devel
